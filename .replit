@@ -1,0 +1,16 @@
+modules = ["nodejs-20"]
+
+[[ports]]
+localPort = 3000
+externalPort = 80
+
+[workflows]
+
+[[workflows.workflow]]
+name = "Stop"
+mode = "sequential"
+author = 54246837
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "pkill node"
