@@ -24,7 +24,7 @@ function sayAPI4(texto, voz = "Sam", pitch = 100, speed = 150) {
     const audio = new Audio(url);
     audio.play()
         .then(() => console.log("Playing voz retro..."))
-        .catch(err => console.error("Error al reproducir:", err));
+        .catch(err => console.error("Error:", err));
 }
 
 
@@ -142,7 +142,7 @@ socket.on("message", data => {
 
     chat.scrollTop = chat.scrollHeight;
 
-    sayAPI4(data.text, "Sam", 100, 150);
+    //sayAPI4(data.text, "Sam", 100, 150);
 
 });
 

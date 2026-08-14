@@ -51,8 +51,8 @@ io.on("connection", socket => {
 
             case "hello":
 
-                socket.emit("message", {
-                    name: "Server",
+                io.emit("message", {
+                    name: socket.name,
                     text: "Hello, " + (args.length ? args.join(" ") : socket.name) + "!"
                 });
 
@@ -111,10 +111,31 @@ io.on("connection", socket => {
 
             case "joke":
                 const jokes = [
-                    
+                    "What do you hear when you get earpods from the factory? Hard metal.",
+                    "Why do we call money bread? Because we KNEAD it. Haha please send money to my PayPal at nigerianprince99@bonzi.com", 
+                    "What do bugs need to make the cake? \"Butter\"flies.",
+                    "A noodle among us, impasta!",
+                    "What is in the middle of paris? A giant inflatable buttplug. Don't judge me on my sense of humor alone.",
+                    "Who earns a living by driving his customers away? Nintendo.",
+                    "How many letters are in \"the alphabet\"? 11. See? T-H-E-A-L-P-H-A-B-E-T.",
+                    "What is the longest word? Smile. See? Because there's a mile. Nah it's pneumonoultramicroscopicsilicovolcanoconiosis.",
+                    "How do penguins build their houses? Igloo.",
+                    "Value of bonzi.",
                 ];
+                io.emit("message", {name: socket.name, text: jokes[Math.floor(Math.random()*jokes.length)]});
                     break;
 
+            case "fact": 
+                const facts = [
+                    "Did you know that uranus is 31,518 miles in diameter?",
+                    "Did you know that alcyoneus is the largest galaxy in the universe?",
+                    "Did you know that James E. webb died from a heart attack?",
+                    "Did you know that the milky way is ~100K light years?",
+                    "Did you know that an eclipse without glasses makes you blind?",
+                    "Did you know that BWI is disbanded?",
+                ];
+                                io.emit("message", {name: socket.name, text: facts[Math.floor(Math.random()*facts.length)]});
+                break;
             default:
 
                 socket.emit("message", {

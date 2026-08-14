@@ -5,137 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>BonziBOX</title>
 
-<style>
-*{
-    margin:0;
-    padding:0;
-    box-sizing:border-box;
-    font-family:Arial,sans-serif;
-}
-
-html,body{
-    width:100%;
-    height:100%;
-    overflow:hidden;
-    background:#f3f3f3;
-}
-
-/* LOGIN */
-
-#loginScreen{
-    position:fixed;
-    inset:0;
-    display:flex;
-    justify-content:center;
-    align-items:center;
-    background-image: linear-gradient(to left, #6a4bad, #9168e8), url('your-image.jpg');
-    z-index:1000;
-}
-
-#loginBox{
-    width:350px;
-    background:white;
-    padding:20px;
-    border-radius:0px;
-    box-shadow:0 5px 20px rgba(0,0,0,.3);
-}
-
-#loginBox h1{
-    margin-bottom:15px;
-}
-
-#loginBox input{
-    width:100%;
-    margin-bottom:10px;
-    padding:10px;
-    font-size:16px;
-}
-
-#join{
-    width:100%;
-    padding:10px;
-    cursor:pointer;
-}
-
-/* CHAT */
-
-#chatPage{
-    display:none;
-    width:100vw;
-    height:100vh;
-}
-
-/* CHAT LOG */
-
-#chat{
-    position:fixed;
-    inset:0;
-    overflow-y:auto;
-    overflow-x:hidden;
-    padding:10px;
-    padding-bottom:60px;
-    background:white;
-}
-
-/* MESSAGE */
-
-.message{
-    display:flex;
-    align-items:flex-start;
-    gap:10px;
-    margin-bottom:8px;
-    word-break:break-word;
-}
-
-.pfp{
-    width:40px;
-    height:40px;
-    border-radius:0%;
-    object-fit:cover;
-    flex-shrink:0;
-    border:1px solid #bbb;
-}
-
-.content{
-    display:flex;
-    flex-direction:column;
-}
-
-.username{
-    font-weight:bold;
-    color:#0066cc;
-}
-
-.text{
-    margin-top:2px;
-}
-
-/* CHAT BAR */
-
-#chatBar{
-    position:fixed;
-    left:0;
-    right:0;
-    bottom:0;
-    height:50px;
-    display:flex;
-    background:#ececec;
-    border-top:1px solid #aaa;
-}
-
-#message{
-    flex:1;
-    border:none;
-    outline:none;
-    padding:10px;
-    font-size:16px;
-}
-
-#send{
-    width:90px;
-    cursor:pointer;
-}
-</style>
+    <link href="style.css" rel="stylesheet" type="text/css" media="all">
+    <link rel="icon" type="image/png" href="/logo.png">
 </head>
 <body>
 
@@ -170,7 +41,7 @@ html,body{
             <a href="changelog">
             Changelog
             </a>
-            <h6>Version 1.0.0</h6>
+            <h6>Version 1.0.1</h6>
         </p>
     </div>
 
