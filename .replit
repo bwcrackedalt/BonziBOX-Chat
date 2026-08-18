@@ -1,5 +1,7 @@
 modules = ["nodejs-20"]
 
+[env]
+ADMIN_PASSWORD = "popeandbluebowtie"
 [[ports]]
 localPort = 3000
 externalPort = 80

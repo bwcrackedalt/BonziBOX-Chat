@@ -8,6 +8,12 @@
     <link href="style.css" rel="stylesheet" type="text/css" media="all">
     <link rel="icon" type="image/png" href="/logo.png">
 </head>
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-contextmenu/2.9.2/jquery.contextMenu.min.js"></script>
+<link
+    rel="stylesheet"
+    href="https://cdnjs.cloudflare.com/ajax/libs/jquery-contextmenu/2.9.2/jquery.contextMenu.min.css"
+>
 <body>
 
 <div id="loginScreen">
@@ -48,6 +54,15 @@
 </div>
 
 <div id="chatPage">
+    <div id="userBox">
+
+        <div id="userTitle">
+            Users
+        </div>
+
+        <div id="users"></div>
+
+    </div>
 
     <div id="chat"></div>
 
@@ -66,9 +81,9 @@
     </div>
 
 </div>
-
+<div id="audio"></div>
 <script src="/socket.io/socket.io.js"></script>
 <script src="client.js"></script>
-
+    <script src="speak.js"></script>
 </body>
 </html>
