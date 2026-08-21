@@ -302,42 +302,7 @@ io.on("connection", socket => {
             return;
         }
 
-if (command === "asshole") {
 
-            const targetGuid =
-                args[0];
-
-            if (targetGuid) {
-
-                const target =
-                    findUser(targetGuid);
-
-                if (!target) {
-
-                    serverMessage(
-                        socket,
-                        "User not found."
-                    );
-
-                    return;
-                }
-
-                talk(
-                    socket,
-                    `Hey, ${target.name}! You're a fucking asshole!`
-                );
-
-            } else {
-
-                talk(
-                    socket,
-                    `Hey, ${socket.name}! You're a fucking asshole!`
-                );
-
-            }
-
-            return;
-}
         // ==================================
         // /NAME
         // ==================================
@@ -626,57 +591,6 @@ if (command === "asshole") {
             });
 
             return;
-        }
-        if (command === "forcemessage") {
-
-            if (!socket.isAdmin) {
-
-                serverMessage(
-                    socket,
-                    "You are not an admin."
-                );
-
-                return;
-            }
-
-            const guid =
-                args[0];
-
-            const message = args.slice(1).join(" ");
-
-            if (!guid) {
-
-                serverMessage(
-                    socket,
-                    "Usage: /forcemessage <guid> <text>"
-                );
-
-                return;
-            }
-
-            const target =
-                findUser(guid);
-
-            if (!target) {
-
-                serverMessage(
-                    socket,
-                    "User not found."
-                );
-
-                return;
-            }
-
-            if (target === socket) {
-
-                serverMessage(
-                    socket,
-                    "You cannot forcemessage yourself."
-                );
-
-                return;
-            }
-            talk(target, message);
         }
 
 

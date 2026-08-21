@@ -238,11 +238,57 @@ function setupContextMenu() {
                     args: [guid]
                 });
             }
-        }
+        },
+        asshole: {
+            name: "Call an asshole",
+
+            callback: function() {
+                const guid = $(this).data("guid");
+
+                socket.emit("command", {
+                    command: "asshole",
+                    args: [guid]
+                });
+            }
+        },
+        yourself: {
+            name: "Actions yourself",
+
+            items: {
+img: {
+name: "Send an image",
+ callback: function() {
+
+    socket.emit("command", {
+        command: "img",
+        args: [prompt(`what do you want to post lol (use an url, if you use "content://media/external/images/<FUCKING IMAGE NUMBER> (e.g ${Math.floor(Math.random()*100000000)})" it wont work, use an catbox, file garden or etc url`)],
+    });
+    }
+    },
+            }
+        },
     };
 
     if (isAdmin) {
-        items.kick = {
+        items.fun = {
+            name: "Fun (Admin)",
+            items: {
+                forcemessage: {
+                    name: `Believable forcemessage`,
+                    callback: function() {
+                        const guid = $(this).data("guid");
+                        socket.emit("command", {
+                            command: "forcemessage",
+                            args: [guid, prompt("what do you want this nophono to say lmao")],
+                        });
+                    }
+                },
+            },
+        };
+        items.admintab = {
+            name: "Admin",
+            items: {
+            kick: {
             name: "Kick",
 
             callback: function() {
@@ -253,9 +299,9 @@ function setupContextMenu() {
                     args: [guid]
                 });
             }
-        };
+        },
 
-        items.ban = {
+           ban: {
             name: "Ban",
 
             callback: function() {
@@ -282,7 +328,8 @@ function setupContextMenu() {
                     ]
                 });
             }
-        };
+        },
+    }};
     }
 
     $.contextMenu({
