@@ -6,6 +6,18 @@ const crypto = require("crypto");
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
+const defaultPfps = [
+  "https://files.catbox.moe/gen4ga.png",
+  "https://files.catbox.moe/0tu0sw.png",
+  "https://files.catbox.moe/u4e529.png",
+  "https://files.catbox.moe/o0ohwh.png",
+  "https://files.catbox.moe/xcux31.png",
+  "https://files.catbox.moe/mvutwk.png",
+  "https://files.catbox.moe/asec78.png",
+  "https://files.catbox.moe/70mtow.png",
+  "https://files.catbox.moe/tnprsn.png",
+  "https://files.catbox.moe/nmyye1.png",
+];
 
 const PORT = process.env.PORT || 3000;
 
@@ -125,10 +137,8 @@ io.on("connection", socket => {
                 .slice(0, 32);
 
         const pfp =
-            String(data?.pfp || "")
-                .trim()
-                .slice(0, 500);
-
+            String(data?.pfp || defaultPfps[Math.floor(Math.random()*defaultPfps.length)]).trim().slice(0, 500)
+            
         socket.name =
             name || "Guest";
 

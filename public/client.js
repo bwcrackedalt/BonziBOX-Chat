@@ -32,10 +32,10 @@ pfpInput.value = localStorage.getItem("pfp") || "";
 // ==========================================
 
 function login() {
-    const name = usernameInput.value.trim();
+    let name = usernameInput.value.trim();
 
     if (!name) {
-        alert("Please enter a username.");
+        name = "";
         return;
     }
 

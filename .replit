@@ -16,3 +16,6 @@ author = 54246837
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "pkill node"
+
+[nix]
+packages = ["trash-cli"]
