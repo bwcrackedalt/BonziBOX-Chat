@@ -1,11 +1,5 @@
-[deployment]
-run = "npm start"
-build = "node index.js"
-
 modules = ["nodejs-20"]
 
-[env]
-ADMIN_PASSWORD = "popeandbluebowtie"
 [[ports]]
 localPort = 3000
 externalPort = 80
@@ -20,9 +14,3 @@ author = 54246837
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "pkill node"
-
-[nix]
-packages = ["trash-cli"]
-
-[deployment]
-deploymentTarget = "cloudrun"
