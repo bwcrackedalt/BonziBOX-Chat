@@ -1,5 +1,6 @@
 modules = ["nodejs-20"]
 
+
 [[ports]]
 localPort = 3000
 externalPort = 80
@@ -14,3 +15,7 @@ author = 54246837
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "pkill node"
+
+[deployment]
+run = ["node", "index.js"]
+deploymentTarget = "cloudrun"
