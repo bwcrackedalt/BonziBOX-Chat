@@ -1,6 +1,21 @@
+document.addEventListener("DOMContentLoaded", function() {
+  document.body.classList.add("loaded");
+});
+
 const socket = io();
 
 let isAdmin = false;
+/*
+$.contextMenu({
+    selector: 'body',
+            items: {
+                "cancel": {
+                    name: "Cancel",
+                    callback: () => { this.cancel(); }
+                },
+    }
+});
+*/
 
 // ==========================================
 // ELEMENTS
@@ -31,6 +46,12 @@ pfpInput.value = localStorage.getItem("pfp") || "";
 // LOGIN
 // ==========================================
 
+function cmd(cmd, args) {
+    socket.emit("command", {
+        command: cmd,
+        args: args.split(" ")
+    })
+}
 function login() {
     let name = usernameInput.value.trim();
 
@@ -104,6 +125,9 @@ messageInput.addEventListener("keydown", e => {
 // ==========================================
 // CHAT MESSAGES
 // ==========================================
+
+
+//send me scary rats for this shit
 
 socket.on("message", data => {
     const message = document.createElement("div");
@@ -428,7 +452,7 @@ socket.on("kicked", () => {
     kickScreen.innerHTML = `
         <div class="kickBox">
             <h1>You were kicked!</h1>
-            <p>You have been removed from the chat.</p>
+            <p>You have been removed from the chat!</p>
 
             <button onclick="location.reload()">
                 Reload

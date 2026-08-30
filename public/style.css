@@ -228,3 +228,16 @@ html,body{
 #send {
     width: 90px;
 }
+body {
+  /* Define how smoothly the background should change */
+  transition: background-color 2.0s ease-in-out; 
+}
+
+body {
+  opacity: 0;
+  transition: opacity 1.5s ease-in-out;
+}
+
+body.loaded {
+  opacity: 1;
+}
