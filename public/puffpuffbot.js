@@ -9,7 +9,7 @@ const commands = [
 {n: "say", d: "Make me say something."},
 {n: "hate", d: "I hate [X]."},
 {n: "sprunki", d: "Sprunki is the worst mod!"},
-    {n: "wtf", d: "Embarass."},
+    //{n: "wtf", d: "Embarass."},
     {n: "img", d: "Post an image."},
     ];
     const imgblacklist = [

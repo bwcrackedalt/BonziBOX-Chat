@@ -1,25 +1,13 @@
-document.addEventListener("DOMContentLoaded", function() {
-  document.body.classList.add("loaded");
+document.addEventListener("DOMContentLoaded", function () {
+    document.body.classList.add("loaded");
 });
-
 const socket = io();
 
+let myGUID = null;
+let myName = null;
+let myPFP = "";
 let isAdmin = false;
-/*
-$.contextMenu({
-    selector: 'body',
-            items: {
-                "cancel": {
-                    name: "Cancel",
-                    callback: () => { this.cancel(); }
-                },
-    }
-});
-*/
-
-// ==========================================
-// ELEMENTS
-// ==========================================
+let currentMedia = null;
 
 const loginScreen = document.getElementById("loginScreen");
 const chatPage = document.getElementById("chatPage");
@@ -34,457 +22,531 @@ const users = document.getElementById("users");
 const messageInput = document.getElementById("message");
 const sendButton = document.getElementById("send");
 
-// ==========================================
-// SAVED LOGIN
-// ==========================================
+const byoutubePlayer = document.getElementById("byoutubePlayer");
 
-usernameInput.value = localStorage.getItem("username") || "";
-pfpInput.value = localStorage.getItem("pfp") || "";
+// ==============================
+// GUEST NAME
+// ==============================
 
+function generateGuestName() {
+    const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
+    let result = "";
 
-// ==========================================
-// LOGIN
-// ==========================================
+    for (let i = 0; i < 6; i++) {
+        result += chars[Math.floor(Math.random() * chars.length)];
+    }
 
-function cmd(cmd, args) {
-    socket.emit("command", {
-        command: cmd,
-        args: args.split(" ")
-    })
+    return "Guest-" + result;
 }
-function login() {
-    let name = usernameInput.value.trim();
 
+// ==============================
+// SHOW CHAT
+// ==============================
+
+function showChat() {
+    if (loginScreen) {
+        setTimeout(()=>{
+            
+        loginScreen.style.display = "none";
+
+        }, 1500);
+        loginScreen.classList.add("joined");
+    }
+
+    if (chatPage) {
+        chatPage.style.display = "flex";
+        chatPage.classList.add("visible");
+    }
+
+    document.body.classList.add("logged-in");
+
+    socket.emit("requestMedia");
+}
+
+// ==============================
+// LOGIN
+// ==============================
+
+function login() {
+    let name = usernameInput ? usernameInput.value.trim() : "";
+
+    // Empty username = guest
     if (!name) {
-        name = "";
+        name = generateGuestName();
+    }
+
+    myName = name;
+
+    if (pfpInput) {
+        myPFP = pfpInput.value.trim();
+    }
+
+    localStorage.setItem("chat_username", myName);
+
+    if (myPFP) {
+        localStorage.setItem("chat_pfp", myPFP);
+    }
+
+    console.log("Logging in as:", myName);
+
+    socket.emit("login", {
+        name: myName,
+        pfp: myPFP,
+    });
+}
+
+// ==============================
+// LOGIN BUTTON
+// ==============================
+
+if (joinButton) {
+    joinButton.addEventListener("click", function (event) {
+        event.preventDefault();
+        login();
+    });
+}
+
+// Enter key
+if (usernameInput) {
+    usernameInput.addEventListener("keydown", function (event) {
+        if (event.key === "Enter") {
+            event.preventDefault();
+            login();
+        }
+    });
+}
+
+// ==============================
+// SAVED USERNAME
+// ==============================
+
+const savedName = localStorage.getItem("chat_username");
+const savedPFP = localStorage.getItem("chat_pfp");
+
+if (savedName && usernameInput) {
+    usernameInput.value = savedName;
+}
+
+if (savedPFP && pfpInput) {
+    pfpInput.value = savedPFP;
+}
+
+// ==============================
+// SOCKET CONNECT
+// ==============================
+
+socket.on("connect", () => {
+    myGUID = socket.id;
+
+    console.log("Connected:", socket.id);
+});
+
+// ==============================
+// LOGIN SUCCESS
+// ==============================
+
+// Support loginSuccess
+socket.on("loginSuccess", function (data) {
+    console.log("Login successful:", data);
+
+    if (data) {
+        myGUID = data.guid || socket.id;
+        myName = data.name || myName;
+        isAdmin = !!data.admin;
+    }
+
+    showChat();
+});
+
+// Support loggedIn
+socket.on("loggedIn", function (data) {
+    console.log("Logged in:", data);
+
+    if (data) {
+        myGUID = data.guid || socket.id;
+        myName = data.name || myName;
+        isAdmin = !!data.admin;
+    }
+
+    showChat();
+});
+
+// Support a simple "login" response
+socket.on("login", function (data) {
+    console.log("Login response:", data);
+
+    if (data && data.success === false) {
         return;
     }
 
-    const pfp = pfpInput.value.trim();
+    if (data) {
+        myGUID = data.guid || socket.id;
+        myName = data.name || myName;
+        isAdmin = !!data.admin;
+    }
 
-    localStorage.setItem("username", name);
-    localStorage.setItem("pfp", pfp);
+    showChat();
+});
 
-    socket.emit("login", {
-        name: name,
-        pfp: pfp
-    });
+// ==============================
+// LOGIN ERROR
+// ==============================
 
-    loginScreen.style.display = "none";
-    chatPage.style.display = "block";
+socket.on("loginError", function (data) {
+    alert(data && data.message ? data.message : "Unable to log in.");
+});
 
-    messageInput.focus();
+// ==============================
+// MESSAGES
+// ==============================
+
+function addSystemMessage(text) {
+    if (!chat) return;
+
+    const div = document.createElement("div");
+
+    div.className = "message system-message";
+    div.textContent = text;
+
+    chat.appendChild(div);
+    chat.scrollTop = chat.scrollHeight;
 }
 
-joinButton.addEventListener("click", login);
+function addMessage(data) {
+    if (!chat) return;
 
-usernameInput.addEventListener("keydown", e => {
-    if (e.key === "Enter") login();
+    const wrapper = document.createElement("div");
+    wrapper.className = "message";
+
+    if (data.pfp) {
+        const image = document.createElement("img");
+
+        image.className = "pfp";
+        image.src = data.pfp;
+        image.alt = data.name + "'s PFP";
+
+        image.onerror = function () {
+            image.remove();
+        };
+
+        wrapper.appendChild(image);
+    }
+
+    const content = document.createElement("div");
+    content.className = "message-content";
+
+    const name = document.createElement("span");
+    name.className = "message-name";
+    name.textContent = data.name || "Unknown";
+
+    const line = document.createElement("br");
+    
+    const text = document.createElement("span");
+    text.className = "message-text";
+    text.textContent = data.text || "";
+
+    content.appendChild(name);
+    content.appendChild(line);
+    content.appendChild(text);
+
+    wrapper.appendChild(content);
+
+    chat.appendChild(wrapper);
+    chat.scrollTop = chat.scrollHeight;
+    speak(data.text, {
+        amplitude: 100,
+        pitch: 50,
+        speed: 175,
+        voice: "en/en-us",
+    });
+}
+
+socket.on("message", addMessage);
+socket.on("say", addMessage);
+
+socket.on("system", function (data) {
+    addSystemMessage(
+        data && (data.text || data.message) ? data.text || data.message : "",
+    );
 });
 
-pfpInput.addEventListener("keydown", e => {
-    if (e.key === "Enter") login();
-});
-
-
-// ==========================================
+// ==============================
 // SEND MESSAGE
-// ==========================================
+// ==============================
 
 function sendMessage() {
+    if (!messageInput) return;
+
     const text = messageInput.value.trim();
 
     if (!text) return;
 
     if (text.startsWith("/")) {
-        const parts = text.slice(1).split(/\s+/);
-        const command = parts.shift();
+        const parts = text.substring(1).trim().split(/\s+/);
+
+        const commandName = parts.shift().toLowerCase();
 
         socket.emit("command", {
-            command: command.toLowerCase(),
-            args: parts
+            command: commandName,
+            args: parts,
         });
     } else {
         socket.emit("say", {
-            text: text
+            text: text,
         });
     }
 
     messageInput.value = "";
+    messageInput.focus();
 }
 
-sendButton.addEventListener("click", sendMessage);
+if (sendButton) {
+    sendButton.addEventListener("click", sendMessage);
+}
 
-messageInput.addEventListener("keydown", e => {
-    if (e.key === "Enter") {
-        sendMessage();
-    }
-});
-
-
-// ==========================================
-// CHAT MESSAGES
-// ==========================================
-
-
-//send me scary rats for this shit
-
-socket.on("message", data => {
-    const message = document.createElement("div");
-    message.className = "message";
-
-    if (data.pfp) {
-        const img = document.createElement("img");
-
-        img.className = "pfp";
-        img.src = data.pfp;
-
-        img.onerror = () => {
-            img.remove();
-        };
-
-        message.appendChild(img);
-    }
-
-    const content = document.createElement("div");
-    content.className = "content";
-
-    const username = document.createElement("div");
-    username.className = "username";
-    username.textContent = data.name || "Server";
-
-    const text = document.createElement("div");
-    text.className = "text";
-
-    if (data.html) {
-        text.innerHTML = data.text;
-    } else {
-        text.textContent = data.text;
-    }
-
-    content.appendChild(username);
-    content.appendChild(text);
-
-    message.appendChild(content);
-
-    chat.appendChild(message);
-const audioContainer =
-            document.getElementById(
-                "audio"
-            );
- 
-        if (audioContainer) {
-            audioContainer.innerHTML = "";
+if (messageInput) {
+    messageInput.addEventListener("keydown", function (event) {
+        if (event.key === "Enter") {
+            event.preventDefault();
+            sendMessage();
         }
-    chat.scrollTop = chat.scrollHeight;
-    speak(data.text,{
-                amplitude: 100,
-                pitch: 50,
-                speed: 175,
-                voice: "en/en-us"
     });
-});
+}
 
+// ==============================
+// USERS
+// ==============================
 
-// ==========================================
-// USER LIST
-// ==========================================
+function renderUsers(userList) {
+    if (!users) return;
 
-socket.on("users", userList => {
     users.innerHTML = "";
 
-    userList.forEach(user => {
-        const userElement = document.createElement("div");
+    if (!Array.isArray(userList)) return;
 
-        userElement.className = "user";
-        userElement.dataset.guid = user.guid;
+    userList.forEach(function (user) {
+        const element = document.createElement("div");
+
+        element.className = "user";
+
+        element.dataset.guid = user.guid || "";
+        element.dataset.name = user.name || "Unknown";
 
         if (user.pfp) {
-            const img = document.createElement("img");
+            const image = document.createElement("img");
 
-            img.className = "userPfp";
-            img.src = user.pfp;
+            image.className = "user-pfp";
+            image.src = user.pfp;
+            image.alt = "";
 
-            img.onerror = () => {
-                img.remove();
+            image.onerror = function () {
+                image.remove();
             };
 
-            userElement.appendChild(img);
+            element.appendChild(image);
         }
 
         const name = document.createElement("span");
 
-        name.className = "userName";
-        name.textContent = user.name;
+        name.className = "user-name";
+        name.textContent = user.name || "Unknown";
 
-        userElement.appendChild(name);
-        users.appendChild(userElement);
-    });
+        element.appendChild(name);
 
-    setupContextMenu();
-});
+        if (user.admin) {
+            const admin = document.createElement("span");
 
+            admin.className = "admin-tag";
+            admin.innerHTML = " <glow>ADMIN</glow>";
 
-// ==========================================
-// ADMIN STATUS
-// ==========================================
+            element.appendChild(admin);
+        }
 
-socket.on("admin", value => {
-    isAdmin = value === true;
-
-    setupContextMenu();
-});
-
-
-// ==========================================
-// JQUERY CONTEXT MENU
-// ==========================================
-
-function setupContextMenu() {
-    if (typeof $.contextMenu !== "function") {
-        console.warn("jQuery ContextMenu is not loaded.");
-        return;
-    }
-
-    try {
-        $.contextMenu("destroy", ".user");
-    } catch (e) {}
-
-    const items = {
-        hello: {
-            name: "Hello",
-
-            callback: function() {
-                const guid = $(this).data("guid");
-
-                socket.emit("command", {
-                    command: "hello",
-                    args: [guid]
-                });
-            }
-        },
-        asshole: {
-            name: "Call an asshole",
-
-            callback: function() {
-                const guid = $(this).data("guid");
-
-                socket.emit("command", {
-                    command: "asshole",
-                    args: [guid]
-                });
-            }
-        },
-        yourself: {
-            name: "Actions yourself",
-
-            items: {
-img: {
-name: "Send an image",
- callback: function() {
-
-    socket.emit("command", {
-        command: "img",
-        args: [prompt(`what do you want to post lol (use an url, if you use "content://media/external/images/<FUCKING IMAGE NUMBER> (e.g ${Math.floor(Math.random()*100000000)})" it wont work, use an catbox, file garden or etc url`)],
-    });
-    }
-    },
-            }
-        },
-    };
-
-    if (isAdmin) {
-        items.fun = {
-            name: "Fun (Admin)",
-            items: {
-                forcemessage: {
-                    name: `Believable forcemessage`,
-                    callback: function() {
-                        const guid = $(this).data("guid");
-                        socket.emit("command", {
-                            command: "forcemessage",
-                            args: [guid, prompt("what do you want this nophono to say lmao")],
-                        });
-                    }
-                },
-            },
-        };
-        items.admintab = {
-            name: "Admin",
-            items: {
-            kick: {
-            name: "Kick",
-
-            callback: function() {
-                const guid = $(this).data("guid");
-
-                socket.emit("command", {
-                    command: "kick",
-                    args: [guid]
-                });
-            }
-        },
-
-           ban: {
-            name: "Ban",
-
-            callback: function() {
-                const guid = $(this).data("guid");
-
-                const minutes = prompt(
-                    "Ban length in minutes:"
-                );
-
-                if (!minutes) return;
-
-                const amount = Number(minutes);
-
-                if (!Number.isFinite(amount) || amount <= 0) {
-                    alert("Invalid ban length.");
-                    return;
-                }
-
-                socket.emit("command", {
-                    command: "ban",
-                    args: [
-                        guid,
-                        String(amount)
-                    ]
-                });
-            }
-        },
-    }};
-    }
-
-    $.contextMenu({
-        selector: ".user",
-
-        trigger: "left",
-
-        items: items
+        users.appendChild(element);
     });
 }
 
+socket.on("users", renderUsers);
+socket.on("userList", renderUsers);
 
-// ==========================================
-// BAN SCREEN
-// ==========================================
+// ==============================
+// ADMIN
+// ==============================
 
-socket.on("banned", data => {
-    loginScreen.style.display = "none";
-    chatPage.style.display = "none";
+socket.on("admin", function (data) {
+    isAdmin = !!data;
+});
 
-    const oldScreen =
-        document.getElementById("banScreen");
+// ==============================
+// KICK
+// ==============================
 
-    if (oldScreen) oldScreen.remove();
+socket.on("kicked", function (data) {
+    alert(data && data.reason ? data.reason : "You were kicked.");
 
-    const banScreen =
-        document.createElement("div");
+    location.reload();
+});
 
-    banScreen.id = "banScreen";
+// ==============================
+// BAN
+// ==============================
 
-    banScreen.innerHTML = `
-        <div class="banBox">
-            <h1>You got banned!</h1>
-            <br> When is it over? <p id="banTime"></p>
-        </div>
-    `;
+socket.on("banned", function (data) {
+    if (loginScreen) {
+        loginScreen.style.display = "none";
+    }
 
-    document.body.appendChild(banScreen);
+    if (chatPage) {
+        chatPage.style.display = "none";
+    }
 
-    const banTime =
-        document.getElementById("banTime");
+    let banScreen = document.getElementById("banScreen");
 
-    function updateBanTime() {
-        const remaining =
-            Math.max(
-                0,
-                data.expires - Date.now()
-            );
+    if (!banScreen) {
+        banScreen = document.createElement("div");
 
-        if (remaining <= 0) {
-            banTime.textContent =
-                "Ban expired! Reload the page.";
+        banScreen.id = "banScreen";
 
-            clearInterval(timer);
+        banScreen.innerHTML = `
+            <div class="ban-box">
+                <h1>You are banned</h1>
+                <p id="banReason"></p>
+            </div>
+        `;
+
+        document.body.appendChild(banScreen);
+    }
+
+    const reason = document.getElementById("banReason");
+
+    if (reason) {
+        reason.textContent =
+            data && data.minutes
+                ? "Ban length: " + data.minutes + " minutes."
+                : "You cannot join this chat.";
+    }
+
+    banScreen.style.display = "flex";
+});
+
+// ==============================
+// BYOUTUBE
+// ==============================
+
+function showByoutube(data) {
+    if (!byoutubePlayer) return;
+
+    currentMedia = data;
+
+    byoutubePlayer.innerHTML = "";
+
+    if (!data) return;
+
+    // YouTube
+    if (data.type === "youtube") {
+        const iframe = document.createElement("iframe");
+
+        iframe.src =
+            "https://www.youtube.com/embed/" +
+            encodeURIComponent(data.value) +
+            "?autoplay=1&mute=1&controls=0";
+
+        iframe.allow = "autoplay; encrypted-media; picture-in-picture";
+
+        iframe.allowFullscreen = true;
+
+        iframe.style.width = "100%";
+        iframe.style.height = "100%";
+        iframe.style.border = "0";
+
+        byoutubePlayer.appendChild(iframe);
+
+        return;
+    }
+
+    // Direct media
+    if (data.type === "media") {
+        const url = data.value.toLowerCase();
+
+        if (/\.(mp3|wav|ogg|m4a|aac)(\?.*)?$/i.test(url)) {
+            const audio = document.createElement("audio");
+
+            audio.src = data.value;
+            audio.controls = true;
+            audio.autoplay = true;
+
+            audio.style.width = "100%";
+
+            byoutubePlayer.appendChild(audio);
+
             return;
         }
 
-        const seconds =
-            Math.ceil(remaining / 1000);
+        const video = document.createElement("video");
 
-        const minutes =
-            Math.floor(seconds / 60);
+        video.src = data.value;
+        video.controls = false;
+        video.autoplay = true;
+        video.playsInline = true;
 
-        const secs =
-            seconds % 60;
+        video.style.width = "100%";
+        video.style.height = "100%";
+        video.style.objectFit = "contain";
 
-        banTime.textContent =
-            `Time remaining: ${minutes}m ${secs}s`;
+        byoutubePlayer.appendChild(video);
     }
+}
 
-    updateBanTime();
-
-    const timer =
-        setInterval(updateBanTime, 1000);
+socket.on("byoutube", function (data) {
+    showByoutube(data);
 });
 
-
-// ==========================================
-// KICK SCREEN
-// ==========================================
-
-socket.on("kicked", () => {
-    loginScreen.style.display = "none";
-    chatPage.style.display = "none";
-
-    const oldScreen =
-        document.getElementById("kickScreen");
-
-    if (oldScreen) oldScreen.remove();
-
-    const kickScreen =
-        document.createElement("div");
-
-    kickScreen.id = "kickScreen";
-
-    kickScreen.innerHTML = `
-        <div class="kickBox">
-            <h1>You were kicked!</h1>
-            <p>You have been removed from the chat!</p>
-
-            <button onclick="location.reload()">
-                Reload
-            </button>
-        </div>
-    `;
-
-    document.body.appendChild(kickScreen);
+socket.on("currentMedia", function (data) {
+    showByoutube(data);
 });
 
+socket.on("byoutubeClear", function () {
+    currentMedia = null;
 
-// ==========================================
-// CLEAR CHAT
-// ==========================================
-
-socket.on("clear", () => {
-    chat.innerHTML = "";
+    if (byoutubePlayer) {
+        byoutubePlayer.innerHTML = "";
+    }
 });
 
+// ==============================
+// CURRENT MEDIA
+// ==============================
 
-// ==========================================
-// DISCONNECT
-// ==========================================
-
-socket.on("disconnect", () => {
-    const message =
-        document.createElement("div");
-
-    message.className = "message";
-
-    message.innerHTML =
-        "<b>Disconnected from server.</b>";
-
-    chat.appendChild(message);
+socket.on("connect", function () {
+    socket.emit("requestMedia");
 });
+
+// ==============================
+// HELPERS
+// ==============================
+
+function say(text) {
+    socket.emit("say", {
+        text: text,
+    });
+}
+
+function command(commandName, ...args) {
+    socket.emit("command", {
+        command: commandName,
+        args: args,
+    });
+}
+
+function byoutube(url) {
+    socket.emit("command", {
+        command: "byoutube",
+        args: [url],
+    });
+}
+
+// ==============================
+// DEBUG
+// ==============================
+
+console.log("client.js loaded");
