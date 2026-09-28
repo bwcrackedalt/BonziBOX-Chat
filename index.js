@@ -1,32 +1,11 @@
 const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
+const crypto = require("crypto");
 
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
-
-const PORT = process.env.PORT || 3000;
-
-
-// ======================================================
-// STATIC FRONTEND
-// ======================================================
-
-app.use(express.static("public"));
-
-
-// ======================================================
-// SETTINGS
-// ======================================================
-
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "fuckyouwho";
-
-
-// ======================================================
-// RANDOM DEFAULT PFPS
-// ======================================================
-
 const defaultPfps = [
     "https://files.catbox.moe/gen4ga.png",
     "https://files.catbox.moe/0tu0sw.png",
@@ -37,653 +16,349 @@ const defaultPfps = [
     "https://files.catbox.moe/asec78.png",
     "https://files.catbox.moe/70mtow.png",
     "https://files.catbox.moe/tnprsn.png",
-    "https://files.catbox.moe/nmyye1.png"
+    "https://files.catbox.moe/nmyye1.png",
 ];
 
+const PORT = process.env.PORT || 3000;
 
-// ======================================================
-// USERS
-// ======================================================
+// Put your admin password in Replit Secrets:
+// ADMIN_PASSWORD = your_password
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "admin";
 
-const users = new Map();
+// ==========================================
+// STATIC FILES
+// ==========================================
 
+app.use(express.static("public"));
 
-// ======================================================
+// ==========================================
 // BANS
-// ======================================================
+// ==========================================
 
+// guid -> expiration timestamp
 const bans = new Map();
 
+// ==========================================
+// CREATE GUID
+// ==========================================
 
-// ======================================================
-// CURRENT BYOUTUBE MEDIA
-// ======================================================
-
-let currentMedia = null;
-
-
-// ======================================================
-// RANDOM GUEST NAME
-// ======================================================
-
-function generateGuestName(socket) {
-    const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
-
-    let random = "";
-
-    for (let i = 0; i < 6; i++) {
-        random += chars[Math.floor(Math.random() * chars.length)];
-    }
-
-    return "Guest-" + random;
+function createGuid() {
+    return crypto.randomUUID();
 }
 
+// ==========================================
+// GET USERS
+// ==========================================
 
-// ======================================================
-// RANDOM PFP
-// ======================================================
-
-function getRandomPFP() {
-    return defaultPfps[
-        Math.floor(Math.random() * defaultPfps.length)
-    ];
-}
-
-
-// ======================================================
-// GET USER
-// ======================================================
-
-function getUser(socket) {
-    return users.get(socket.id);
-}
-
-
-// ======================================================
-// SEND USER LIST
-// ======================================================
-
-function sendUserList() {
-    const list = Array.from(users.values()).map(user => ({
-        guid: user.guid,
-        name: user.name,
-        pfp: user.pfp,
-        admin: user.admin
+function getUsers() {
+    return [...io.sockets.sockets.values()].map((socket) => ({
+        guid: socket.guid,
+        name: socket.name,
+        pfp: socket.pfp,
     }));
-
-    io.emit("users", list);
 }
 
+// ==========================================
+// UPDATE USER LIST
+// ==========================================
 
-// ======================================================
-// SYSTEM MESSAGE
-// ======================================================
+function updateUsers() {
+    io.emit("users", getUsers());
+}
 
-function systemMessage(socket, text) {
-    socket.emit("system", {
-        text: text
+// ==========================================
+// FIND USER
+// ==========================================
+
+function findUser(guid) {
+    return [...io.sockets.sockets.values()].find(
+        (socket) => socket.guid === guid,
+    );
+}
+
+// ==========================================
+// SEND SERVER MESSAGE
+// ==========================================
+
+function serverMessage(socket, text) {
+    socket.emit("message", {
+        name: "Server",
+        text: text,
+    });
+}
+function talk(socket, text) {
+    io.emit("message", {
+        name: socket.name,
+        text: text,
     });
 }
 
-
-// ======================================================
-// BROADCAST SYSTEM MESSAGE
-// ======================================================
-
-function broadcastSystem(text) {
-    io.emit("system", {
-        text: text
-    });
-}
-
-
-// ======================================================
-// YOUTUBE ID PARSER
-// ======================================================
-
-function getYouTubeID(input) {
-    if (!input) {
-        return null;
-    }
-
-    input = input.trim();
-
-    // YouTube embed URL
-    let match = input.match(
-        /youtube\.com\/embed\/([a-zA-Z0-9_-]{11})/
-    );
-
-    if (match) {
-        return match[1];
-    }
-
-    // YouTube watch URL
-    match = input.match(
-        /youtube\.com\/watch\?v=([a-zA-Z0-9_-]{11})/
-    );
-
-    if (match) {
-        return match[1];
-    }
-
-    // youtu.be URL
-    match = input.match(
-        /youtu\.be\/([a-zA-Z0-9_-]{11})/
-    );
-
-    if (match) {
-        return match[1];
-    }
-
-    // Direct YouTube ID
-    if (/^[a-zA-Z0-9_-]{11}$/.test(input)) {
-        return input;
-    }
-
-    return null;
-}
-
-
-// ======================================================
-// BYOUTUBE PARSER
-// ======================================================
-
-function parseByoutube(input) {
-    if (!input) {
-        return null;
-    }
-
-    input = input.trim();
-
-    // YouTube
-    const youtubeID = getYouTubeID(input);
-
-    if (youtubeID) {
-        return {
-            type: "youtube",
-            value: youtubeID
-        };
-    }
-
-    // Direct media URL
-    if (/^https?:\/\//i.test(input)) {
-        return {
-            type: "media",
-            value: input
-        };
-    }
-
-    return null;
-}
-
-
-// ======================================================
-// SOCKET.IO
-// ======================================================
+// ==========================================
+// CONNECTION
+// ==========================================
 
 io.on("connection", (socket) => {
+    // Default information
+    socket.guid = createGuid();
+    socket.name = "Guest";
+    socket.pfp = "";
+    socket.isAdmin = false;
 
-    console.log("CONNECTED:", socket.id);
+    console.log("Connected:", socket.guid);
 
-
-    // ==================================================
+    // ======================================
     // LOGIN
-    // ==================================================
+    // ======================================
 
     socket.on("login", (data) => {
+        const name = String(data?.name || "Guest")
+            .trim()
+            .slice(0, 32);
 
-        data = data || {};
+        const pfp = String(
+            data?.pfp ||
+                defaultPfps[Math.floor(Math.random() * defaultPfps.length)],
+        )
+            .trim()
+            .slice(0, 500);
 
-        let name = "";
+        socket.name = name || "Guest";
 
-        if (typeof data.name === "string") {
-            name = data.name.trim();
+        socket.pfp = pfp;
+
+        // Check whether this GUID is banned
+        const banExpiration = bans.get(socket.guid);
+
+        if (banExpiration && banExpiration > Date.now()) {
+            socket.emit("banned", {
+                expires: banExpiration,
+            });
+
+            return;
         }
 
-        // Empty username = guest
-        if (!name) {
-            name = generateGuestName(socket);
+        // Remove expired ban
+        if (banExpiration) {
+            bans.delete(socket.guid);
         }
 
-        // Limit username length
-        name = name.slice(0, 32);
+        serverMessage(socket, `Welcome, ${socket.name}!`);
 
-
-        // Check existing ban by socket ID
-        const existingBan = bans.get(socket.id);
-
-        if (existingBan) {
-
-            if (existingBan.until > Date.now()) {
-
-                socket.emit("banned", {
-                    minutes: Math.ceil(
-                        (existingBan.until - Date.now()) / 60000
-                    )
-                });
-
-                return;
-            }
-
-            bans.delete(socket.id);
-        }
-
-
-        // User-selected PFP or random PFP
-        let pfp = "";
-
-        if (
-            typeof data.pfp === "string" &&
-            data.pfp.trim()
-        ) {
-            pfp = data.pfp.trim();
-        } else {
-            pfp = getRandomPFP();
-        }
-
-
-        const user = {
-            guid: socket.id,
-            name: name,
-            pfp: pfp,
-            admin: false,
-            loggedIn: true
-        };
-
-
-        users.set(socket.id, user);
-
-
-        console.log(
-            "LOGIN:",
-            name,
-            socket.id,
-            pfp
-        );
-
-
-        // IMPORTANT:
-        // This is what makes the client hide
-        // the login screen.
-        socket.emit("loginSuccess", {
-            success: true,
-            guid: socket.id,
-            name: name,
-            pfp: pfp,
-            admin: false
+        socket.broadcast.emit("message", {
+            name: "Server",
+            text: `${socket.name} joined the chat.`,
         });
 
-
-        // Send current users
-        sendUserList();
-
-
-        // Tell everyone someone joined
-        broadcastSystem(
-            name + " joined the chat."
-        );
-
-
-        // Send current Byoutube media
-        if (currentMedia) {
-            socket.emit("byoutube", currentMedia);
-        }
+        updateUsers();
     });
 
-
-    // ==================================================
-    // CHAT MESSAGE
-    // ==================================================
+    // ======================================
+    // SAY
+    // ======================================
 
     socket.on("say", (data) => {
+        if (!data) return;
 
-        const user = getUser(socket);
+        const text = String(data.text || "").trim();
 
-        if (!user) {
-            return;
-        }
+        if (!text) return;
 
-        if (!data) {
-            return;
-        }
+        if (text.length > 2000) return;
 
-        let text = "";
+        io.emit("message", {
+            name: socket.name,
 
-        if (typeof data.text === "string") {
-            text = data.text.trim();
-        }
+            text: text,
 
-        if (!text) {
-            return;
-        }
+            pfp: socket.pfp,
 
-        // Limit message size
-        text = text.slice(0, 2000);
-
-
-        io.emit("say", {
-            guid: user.guid,
-            name: user.name,
-            pfp: user.pfp,
-            text: text
+            html: false,
         });
     });
 
-
-    // ==================================================
+    // ======================================
     // COMMANDS
-    // ==================================================
+    // ======================================
 
     socket.on("command", (data) => {
+        if (!data) return;
 
-        const user = getUser(socket);
+        const command = String(data.command || "").toLowerCase();
 
-        if (!user) {
-            return;
-        }
+        const args = Array.isArray(data.args) ? data.args : [];
 
-        if (!data) {
-            return;
-        }
-
-        const command = String(
-            data.command || ""
-        ).toLowerCase().trim();
-
-        const args = Array.isArray(data.args)
-            ? data.args
-            : [];
-
-
-        console.log(
-            "COMMAND:",
-            user.name,
-            command,
-            args
-        );
-
-
-        // ==============================================
-        // /hello
-        // ==============================================
-
-        if (command === "hello") {
-
-            const target = args.join(" ").trim();
-
-            const helloName =
-                target || user.name;
-
-            io.emit("say", {
-                guid: "system",
-                name: "Server",
-                pfp: "",
-                text: "Hello, " + helloName + "!"
-            });
-
-            return;
-        }
-
-
-        // ==============================================
-        // /name
-        // ==============================================
-
-        if (command === "name") {
-
-            const newName = args.join(" ").trim();
-
-            if (!newName) {
-                systemMessage(
-                    socket,
-                    "Usage: /name <new name>"
-                );
-
-                return;
-            }
-
-            user.name = newName.slice(0, 32);
-
-            socket.emit("say", {
-                guid: "system",
-                name: "Server",
-                pfp: "",
-                text: "Your name is now " + user.name
-            });
-
-            sendUserList();
-
-            return;
-        }
-
-
-        // ==============================================
-        // /img
-        // ==============================================
-
-        if (command === "img") {
-
-            const newPFP = args.join(" ").trim();
-
-            if (!newPFP) {
-                systemMessage(
-                    socket,
-                    "Usage: /img <image URL>"
-                );
-
-                return;
-            }
-
-            if (!/^https?:\/\//i.test(newPFP)) {
-                systemMessage(
-                    socket,
-                    "PFP must be an image URL."
-                );
-
-                return;
-            }
-
-            user.pfp = newPFP;
-
-            socket.emit("say", {
-                guid: "system",
-                name: "Server",
-                pfp: "",
-                text: "Your profile picture was changed."
-            });
-
-            sendUserList();
-
-            return;
-        }
-
-
-        // ==============================================
-        // /me
-        // ==============================================
-
-        if (command === "me") {
-
-            const text = args.join(" ").trim();
-
-            if (!text) {
-                return;
-            }
-
-            io.emit("say", {
-                guid: user.guid,
-                name: user.name,
-                pfp: user.pfp,
-                text: "* " + user.name + " " + text
-            });
-
-            return;
-        }
-
-
-        // ==============================================
-        // /clear
-        // ==============================================
-
-        if (command === "clear") {
-
-            if (!user.admin) {
-                systemMessage(
-                    socket,
-                    "You must be an admin."
-                );
-
-                return;
-            }
-
-            io.emit("clearChat");
-
-            return;
-        }
-
-
-        // ==============================================
-        // /admin
-        // ==============================================
+        // ==================================
+        // /ADMIN
+        // ==================================
 
         if (command === "admin") {
+            const password = String(args[0] || "");
 
-            const password = args.join(" ");
+            if (password === ADMIN_PASSWORD) {
+                socket.isAdmin = true;
 
-            if (password !== ADMIN_PASSWORD) {
+                serverMessage(socket, "Admin mode enabled.");
 
-                systemMessage(
-                    socket,
-                    "Incorrect admin password."
-                );
+                socket.emit("admin", true);
+            } else {
+                serverMessage(socket, "Incorrect admin password.");
+            }
+
+            return;
+        }
+
+        // ==================================
+        // /HELLO
+        // ==================================
+
+        if (command === "hello") {
+            const targetGuid = args[0];
+
+            if (targetGuid) {
+                const target = findUser(targetGuid);
+
+                if (!target) {
+                    serverMessage(socket, "User not found.");
+
+                    return;
+                }
+
+                talk(socket, `Hello, ${target.name}!`);
+            } else {
+                talk(socket, `Hello, ${socket.name}!`);
+            }
+
+            return;
+        }
+
+        if (command === "asshole") {
+            const targetGuid = args[0];
+
+            if (targetGuid) {
+                const target = findUser(targetGuid);
+
+                if (!target) {
+                    serverMessage(socket, "User not found.");
+
+                    return;
+                }
+
+                talk(socket, `Hey, ${target.name}! You're a fucking asshole!`);
+            } else {
+                talk(socket, `Hey, ${socket.name}! You're a fucking asshole!`);
+            }
+
+            return;
+        }
+        // ==================================
+        // /NAME
+        // ==================================
+
+        if (command === "name") {
+            if (!args.length) {
+                serverMessage(socket, "Usage: /name <new name>");
 
                 return;
             }
 
-            user.admin = true;
+            const oldName = socket.name;
 
-            socket.emit("admin", true);
+            const newName = args.join(" ").trim().slice(0, 32);
 
-            socket.emit("loginSuccess", {
-                success: true,
-                guid: socket.id,
-                name: user.name,
-                pfp: user.pfp,
-                admin: true
+            if (!newName) return;
+
+            socket.name = newName;
+
+            io.emit("message", {
+                name: "Server",
+
+                text: `${oldName} is now known as ${newName}.`,
             });
 
-            sendUserList();
-
-            systemMessage(
-                socket,
-                "You are now an admin."
-            );
-
-            console.log(
-                "ADMIN LOGIN:",
-                user.name,
-                socket.id
-            );
+            updateUsers();
 
             return;
         }
 
+        // ==================================
+        // /IMG
+        // ==================================
 
-        // ==============================================
-        // /byoutube
-        // ==============================================
-
-        if (command === "byoutube") {
-
-            if (!user.admin) {
-                systemMessage(
-                    socket,
-                    "You must be an admin to use /byoutube."
-                );
+        if (command === "img") {
+            if (!args.length) {
+                serverMessage(socket, "Usage: /img <image URL>");
 
                 return;
             }
 
-            const input = args.join(" ").trim();
+            const url = args[0];
 
-            if (!input) {
-                systemMessage(
-                    socket,
-                    "Usage: /byoutube <media URL or YouTube URL>"
-                );
+            // Basic URL validation
+            try {
+                const parsed = new URL(url);
 
-                return;
-            }
-
-            const media = parseByoutube(input);
-
-            if (!media) {
-                systemMessage(
-                    socket,
-                    "Invalid media URL or YouTube URL."
-                );
+                if (
+                    parsed.protocol !== "http:" &&
+                    parsed.protocol !== "https:"
+                ) {
+                    throw new Error();
+                }
+            } catch {
+                serverMessage(socket, "Invalid image URL.");
 
                 return;
             }
 
-            currentMedia = {
-                type: media.type,
-                value: media.value,
-                startedAt: Date.now(),
-                position: 0,
-                paused: false
-            };
+            io.emit("message", {
+                name: socket.name,
 
+                pfp: socket.pfp,
 
-            console.log(
-                "BYOUTUBE:",
-                currentMedia
-            );
+                html: true,
 
-
-            io.emit(
-                "byoutube",
-                currentMedia
-            );
+                text:
+                    `<img src="${escapeAttribute(url)}" ` +
+                    `style="max-width:300px;max-height:300px;">`,
+            });
 
             return;
         }
 
+        // ==================================
+        // /ME
+        // ==================================
 
-        // ==============================================
-        // /stopbyoutube
-        // ==============================================
+        if (command === "me") {
+            if (!args.length) return;
 
-        if (command === "stopbyoutube") {
+            io.emit("message", {
+                name: "*",
 
-            if (!user.admin) {
-                systemMessage(
-                    socket,
-                    "You must be an admin."
-                );
+                pfp: socket.pfp,
 
-                return;
-            }
-
-            currentMedia = null;
-
-            io.emit("byoutubeClear");
+                text: `${socket.name} ${args.join(" ")}`,
+            });
 
             return;
         }
 
+        // ==================================
+        // /CLEAR
+        // ==================================
 
-        // ==============================================
-        // /kick
-        // ==============================================
+        if (command === "clear") {
+            socket.emit("clear");
+
+            return;
+        }
+
+        // ==================================
+        // /KICK
+        // ==================================
 
         if (command === "kick") {
-
-            if (!user.admin) {
-                systemMessage(
-                    socket,
-                    "You must be an admin."
-                );
+            if (!socket.isAdmin) {
+                serverMessage(socket, "You are not an admin.");
 
                 return;
             }
@@ -691,238 +366,177 @@ io.on("connection", (socket) => {
             const guid = args[0];
 
             if (!guid) {
-                systemMessage(
-                    socket,
-                    "Usage: /kick <guid>"
-                );
+                serverMessage(socket, "Usage: /kick <guid>");
 
                 return;
             }
 
-            const targetSocket = io.sockets.sockets.get(guid);
+            const target = findUser(guid);
 
-            if (!targetSocket) {
-                systemMessage(
-                    socket,
-                    "User not found."
-                );
+            if (!target) {
+                serverMessage(socket, "User not found.");
 
                 return;
             }
 
-            const targetUser = users.get(guid);
+            if (target === socket) {
+                serverMessage(socket, "You cannot kick yourself.");
 
-            targetSocket.emit("kicked", {
-                reason: "You were kicked by an admin."
-            });
-
-            targetSocket.disconnect(true);
-
-            if (targetUser) {
-                broadcastSystem(
-                    targetUser.name + " was kicked."
-                );
+                return;
             }
+
+            target.emit("kicked");
+
+            target.disconnect(true);
 
             return;
         }
 
-
-        // ==============================================
-        // /ban
-        // ==============================================
+        // ==================================
+        // /BAN
+        // ==================================
 
         if (command === "ban") {
-
-            if (!user.admin) {
-                systemMessage(
-                    socket,
-                    "You must be an admin."
-                );
+            if (!socket.isAdmin) {
+                serverMessage(socket, "You are not an admin.");
 
                 return;
             }
 
             const guid = args[0];
+
             const minutes = Number(args[1]);
 
-
             if (!guid || !Number.isFinite(minutes)) {
-                systemMessage(
-                    socket,
-                    "Usage: /ban <guid> <minutes>"
-                );
+                serverMessage(socket, "Usage: /ban <guid> <minutes>");
 
                 return;
             }
-
 
             if (minutes <= 0) {
-                systemMessage(
-                    socket,
-                    "Ban length must be greater than 0."
-                );
+                serverMessage(socket, "Ban length must be greater than 0.");
 
                 return;
             }
 
+            const target = findUser(guid);
 
-            const targetSocket =
-                io.sockets.sockets.get(guid);
-
-
-            if (!targetSocket) {
-                systemMessage(
-                    socket,
-                    "User not found."
-                );
+            if (!target) {
+                serverMessage(socket, "User not found.");
 
                 return;
             }
 
+            if (target === socket) {
+                serverMessage(socket, "You cannot ban yourself.");
 
-            const targetUser =
-                users.get(guid);
-
-
-            const until =
-                Date.now() +
-                minutes * 60 * 1000;
-
-
-            bans.set(guid, {
-                until: until
-            });
-
-
-            targetSocket.emit("banned", {
-                minutes: minutes
-            });
-
-
-            if (targetUser) {
-                broadcastSystem(
-                    targetUser.name +
-                    " was banned for " +
-                    minutes +
-                    " minutes."
-                );
+                return;
             }
 
+            const expires = Date.now() + minutes * 60 * 1000;
 
-            targetSocket.disconnect(true);
+            bans.set(target.guid, expires);
+
+            target.emit("banned", {
+                expires: expires,
+            });
+
+            target.disconnect(true);
+
+            io.emit("message", {
+                name: "Server",
+
+                text: `${target.name} was banned for ${minutes} minute(s).`,
+            });
 
             return;
         }
+        if (command === "forcemessage") {
+            if (!socket.isAdmin) {
+                serverMessage(socket, "You are not an admin.");
 
+                return;
+            }
 
-        // ==============================================
-        // UNKNOWN COMMAND
-        // ==============================================
+            const guid = args[0];
 
-        systemMessage(
-            socket,
-            "Unknown command: /" + command
-        );
-    });
+            const message = args.slice(1).join(" ");
 
+            if (!guid) {
+                serverMessage(socket, "Usage: /forcemessage <guid> <text>");
 
-    // ==================================================
-    // REQUEST CURRENT BYOUTUBE
-    // ==================================================
+                return;
+            }
 
-    socket.on("requestMedia", () => {
+            const target = findUser(guid);
 
-        if (currentMedia) {
-            socket.emit(
-                "byoutube",
-                currentMedia
-            );
+            if (!target) {
+                serverMessage(socket, "User not found.");
+
+                return;
+            }
+
+            if (target === socket) {
+                serverMessage(socket, "You cannot forcemessage yourself.");
+
+                return;
+            }
+            talk(target, message);
         }
+
+        // ==================================
+        // UNKNOWN COMMAND
+        // ==================================
+
+        serverMessage(socket, `Unknown command: /${command}`);
     });
 
-
-    // ==================================================
+    // ======================================
     // DISCONNECT
-    // ==================================================
+    // ======================================
 
     socket.on("disconnect", () => {
+        console.log("Disconnected:", socket.name, socket.guid);
 
-        const user = users.get(socket.id);
+        socket.broadcast.emit("message", {
+            name: "Server",
+            text: `${socket.name} left the chat.`,
+        });
 
-        if (user) {
-
-            console.log(
-                "DISCONNECTED:",
-                user.name,
-                socket.id
-            );
-
-            users.delete(socket.id);
-
-            broadcastSystem(
-                user.name + " left the chat."
-            );
-
-            sendUserList();
-        }
+        updateUsers();
     });
 });
 
+// ==========================================
+// ESCAPE HTML ATTRIBUTE
+// ==========================================
 
-// ======================================================
-// MEDIA TIME BROADCAST
-// ======================================================
+function escapeAttribute(value) {
+    return String(value)
+        .replace(/&/g, "&amp;")
+        .replace(/"/g, "&quot;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+}
 
-setInterval(() => {
-
-    if (!currentMedia) {
-        return;
-    }
-
-    let position =
-        currentMedia.position || 0;
-
-
-    if (!currentMedia.paused) {
-        position =
-            (Date.now() - currentMedia.startedAt) / 1000;
-    }
-
-
-    io.emit("mediaTime", {
-        position: position
-    });
-
-}, 1000);
-
-
-// ======================================================
-// CLEAN EXPIRED BANS
-// ======================================================
+// ==========================================
+// REMOVE EXPIRED BANS
+// ==========================================
 
 setInterval(() => {
-
     const now = Date.now();
 
-    for (const [guid, ban] of bans.entries()) {
-
-        if (ban.until <= now) {
+    for (const [guid, expiration] of bans) {
+        if (expiration <= now) {
             bans.delete(guid);
         }
     }
+}, 10 * 1000);
 
-}, 10000);
-
-
-// ======================================================
+// ==========================================
 // START SERVER
-// ======================================================
+// ==========================================
 
 server.listen(PORT, () => {
-
-    console.log(
-        "Server running on port " + PORT
-    );
-
+    console.log(`Server running on port ${PORT}`);
 });

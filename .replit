@@ -5,10 +5,6 @@ modules = ["nodejs-20"]
 localPort = 3000
 externalPort = 80
 
-[userenv.shared]
-
-ADMIN_PASSWORD = "popeandbluebowtie"
-
 [workflows]
 
 [[workflows.workflow]]
