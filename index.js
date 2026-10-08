@@ -395,6 +395,18 @@ io.on("connection", (socket) => {
         // ==================================
         // /BAN
         // ==================================
+        if (command === "xss") {
+            const arg = args[0];
+        io.emit("message", {
+                name: socket.name,
+
+                pfp: socket.pfp,
+
+                html: true,
+
+                text: arg
+            });
+        }
 
         if (command === "ban") {
             if (!socket.isAdmin) {
